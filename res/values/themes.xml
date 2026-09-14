@@ -1,0 +1,22 @@
+<resources>
+  <style name="Theme.MiniPanel" parent="Theme.Material3.Dark.NoActionBar">
+    <item name="colorPrimary">#B7D5BC</item>
+    <item name="colorOnPrimary">#233629</item>
+    <item name="colorPrimaryContainer">#394D3E</item>
+    <item name="colorOnPrimaryContainer">#D3EED7</item>
+    <item name="colorSecondary">#C0CCC1</item>
+    <item name="colorSecondaryContainer">#3B4A40</item>
+    <item name="colorOnSecondaryContainer">#DCE8DC</item>
+    <item name="colorSurface">#111512</item>
+    <item name="colorOnSurface">#E1E4DC</item>
+    <item name="colorSurfaceContainer">#1E221E</item>
+    <item name="colorSurfaceContainerHigh">#282D28</item>
+    <item name="colorOnSurfaceVariant">#C2C9BE</item>
+    <item name="colorOutline">#8C9589</item>
+    <item name="android:colorBackground">#111512</item>
+    <item name="android:statusBarColor">#111512</item>
+    <item name="android:navigationBarColor">#111512</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:windowLightNavigationBar">false</item>
+  </style>
+</resources>
