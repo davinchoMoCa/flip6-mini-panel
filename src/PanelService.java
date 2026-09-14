@@ -24,6 +24,55 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
   boolean catalogMode = false;
   TextView status;
 
+  // Keep only the cover overlay awake; never wake a display the user switched off.
+  boolean spotifyPlaying = false, watchStarted = false, destroyed = false;
+  final ExecutorService playbackExecutor = Executors.newSingleThreadExecutor();
+  final Runnable playbackWatch =
+      () -> {
+        if (destroyed) return;
+        if (!getSharedPreferences("panel", 0).getBoolean("enabled", false)) {
+          applyPlaybackAwake(false);
+          main.postDelayed(this.playbackWatch, 10000);
+          return;
+        }
+        playbackExecutor.execute(
+            () -> {
+              boolean playing = false;
+              try {
+                playing = RootClient.run(this, "spotifyplaying").optBoolean("playing", false);
+              } catch (Exception ignored) {
+              }
+              final boolean value = playing;
+              main.post(
+                  () -> {
+                    if (destroyed) return;
+                    applyPlaybackAwake(value);
+                    main.postDelayed(this.playbackWatch, 10000);
+                  });
+            });
+      };
+
+  void startPlaybackWatch() {
+    if (!watchStarted) {
+      watchStarted = true;
+      main.post(playbackWatch);
+    }
+  }
+
+  void applyPlaybackAwake(boolean playing) {
+    spotifyPlaying = playing;
+    if (window == null || wm == null) return;
+    WindowManager.LayoutParams p = (WindowManager.LayoutParams) window.getLayoutParams();
+    int flags = p.flags;
+    if (expanded || playing) p.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+    else p.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+    if (flags != p.flags)
+      try {
+        wm.updateViewLayout(window, p);
+      } catch (Exception ignored) {
+      }
+  }
+
   int dp(int n) {
     return Math.round(n * cover.getResources().getDisplayMetrics().density);
   }
@@ -62,6 +111,7 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
       wm = cover.getSystemService(WindowManager.class);
     }
     if (window == null) bubble();
+    startPlaybackWatch();
   }
 
   void remove() {
@@ -121,7 +171,9 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
             expanded ? -1 : height,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             (catalogMode ? 0 : WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-                | (expanded ? WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON : 0),
+                | ((expanded || spotifyPlaying)
+                    ? WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    : 0),
             PixelFormat.TRANSLUCENT);
     p.gravity = Gravity.TOP | (left ? Gravity.LEFT : Gravity.RIGHT);
     p.x = expanded ? 0 : dp(6);
@@ -294,6 +346,7 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
     button(box, "Inicio (reloj)", () -> navigate("home"));
     button(box, "Todas las apps", () -> allApps());
     button(box, "Apps abiertas", () -> tasks(false));
+    button(box, "Cerrar apps", () -> closeApps());
     button(box, "Rescatar de la interna", () -> tasks(true));
     button(box, "Volver a música", () -> menu());
     show(box, dp(280), -2);
@@ -332,6 +385,7 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
           bubble();
           run("launch local.flip6.minipanel", r -> {}, e -> error(e));
         });
+    button(box, "Cerrar apps", () -> closeApps());
     button(box, "Brillo y controles", () -> controls());
     button(box, "Apps y navegación", () -> navigation());
     show(box, dp(280), -2);
@@ -485,6 +539,97 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
     box.addView(t);
     button(box, "Volver", () -> menu());
     show(box, dp(270), -2);
+  }
+
+  void closeApps() {
+    catalogMode = false;
+    expanded = true;
+    LinearLayout loading = layout("Cerrar apps");
+    TextView hint = MaterialUi.text(cover, "Consultando ventanas...", false);
+    loading.addView(hint);
+    show(loading, dp(280), -2);
+    final View origin = window;
+    run(
+        "list",
+        r -> {
+          if (window != origin) return;
+          try {
+            LinearLayout box = layout("Cerrar apps");
+            TextView info =
+                MaterialUi.text(
+                    cover,
+                    "Cierra ventanas como en Recientes. La música puede seguir en segundo plano.",
+                    false);
+            info.setTextSize(12);
+            box.addView(info);
+            ScrollView scroll = new ScrollView(cover);
+            LinearLayout list = new LinearLayout(cover);
+            list.setOrientation(LinearLayout.VERTICAL);
+            scroll.addView(list);
+            box.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            JSONArray items = r.getJSONArray("items");
+            int count = 0;
+            for (int i = 0; i < items.length(); i++) {
+              JSONObject item = items.getJSONObject(i);
+              String pkg = item.getString("package");
+              if (pkg.equals("com.android.systemui")) continue;
+              final int id = item.getInt("id");
+              String label = pkg;
+              try {
+                label =
+                    getPackageManager()
+                        .getApplicationLabel(getPackageManager().getApplicationInfo(pkg, 0))
+                        .toString();
+              } catch (Exception ignored) {
+              }
+              LinearLayout row = new LinearLayout(cover);
+              row.setGravity(Gravity.CENTER_VERTICAL);
+              list.addView(row, new LinearLayout.LayoutParams(-1, dp(64)));
+              TextView title =
+                  MaterialUi.text(
+                      cover,
+                      label + (item.getInt("display") == 1 ? "\nExterna" : "\nInterna"),
+                      false);
+              title.setTextSize(14);
+              title.setMaxLines(2);
+              title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+              row.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+              com.google.android.material.button.MaterialButton close =
+                  MaterialUi.button(cover, "Cerrar", () -> {});
+              MaterialUi.tone(close, 0);
+              close.setContentDescription("Cerrar " + label);
+              row.addView(close, new LinearLayout.LayoutParams(dp(88), dp(48)));
+              close.setOnClickListener(
+                  v -> {
+                    if (busy) return;
+                    final View view = window;
+                    close.setEnabled(false);
+                    run(
+                        "close " + id,
+                        x -> {
+                          if (window == view) closeApps();
+                        },
+                        e -> {
+                          if (window == view) {
+                            close.setEnabled(true);
+                            info.setText(e);
+                          }
+                        });
+                  });
+              count++;
+            }
+            if (count == 0)
+              list.addView(MaterialUi.text(cover, "No hay ventanas de apps para cerrar.", false));
+            button(box, "Actualizar", () -> closeApps());
+            button(box, "Volver", () -> menu());
+            show(box, dp(280), cover.getResources().getDisplayMetrics().heightPixels - dp(32));
+          } catch (Exception e) {
+            error(e.getMessage());
+          }
+        },
+        e -> {
+          if (window == origin) error(e);
+        });
   }
 
   void tasks(boolean internalOnly) {
@@ -728,6 +873,9 @@ public class PanelService extends android.accessibilityservice.AccessibilityServ
   }
 
   public void onDestroy() {
+    destroyed = true;
+    main.removeCallbacks(playbackWatch);
+    playbackExecutor.shutdownNow();
     getSharedPreferences("panel", 0).unregisterOnSharedPreferenceChangeListener(listener);
     if (dm != null) dm.unregisterDisplayListener(this);
     remove();

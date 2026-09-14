@@ -60,7 +60,22 @@ public class RootBridge {
       manager =
           Class.forName("android.app.ActivityTaskManager").getMethod("getService").invoke(null);
       String action = args.length == 0 ? "list" : args[0];
-      if (action.equals("nowplaying")) {
+      if (action.equals("spotifyplaying")) {
+        String dump = command("/system/bin/dumpsys", "media_session");
+        boolean playing = false;
+        for (String session : dump.split("(?m)^\\s*package=")) {
+          if (session.startsWith("com.spotify.music\n")
+              || session.startsWith("com.spotify.music\r\n")) {
+            playing |=
+                java.util.regex.Pattern.compile("(?m)^\\s*active=true\\s*$").matcher(session).find()
+                    && java.util.regex.Pattern.compile(
+                            "(?m)^\\s*state=PlaybackState \\{state=(?:PLAYING\\(3\\)|3)[,}]")
+                        .matcher(session)
+                        .find();
+          }
+        }
+        result.put("playing", playing);
+      } else if (action.equals("nowplaying")) {
         String dump = command("/system/bin/dumpsys", "media_session");
         java.util.regex.Matcher m =
             java.util.regex.Pattern.compile("metadata: size=\\d+, description=([^\\r\\n]+)")
@@ -201,6 +216,26 @@ public class RootBridge {
               new Class<?>[] {int.class, Bundle.class},
               id,
               ActivityOptions.makeBasic().setLaunchDisplayId(1).toBundle());
+        } else if (action.equals("close")) {
+          int id = Integer.parseInt(args[1]);
+          Object selected = null;
+          for (Object root : roots())
+            if (number(root, "taskId") == id
+                && type(root) == 1
+                && (number(root, "displayId") == 0 || number(root, "displayId") == 1))
+              selected = root;
+          if (selected == null)
+            throw new Exception("La ventana ya no esta abierta; actualiza la lista");
+          ComponentName top = (ComponentName) field(selected, "topActivity");
+          if (top == null
+              || top.getPackageName().equals("local.flip6.minipanel")
+              || top.getPackageName().equals("com.android.systemui"))
+            throw new Exception("Esta ventana no se puede cerrar desde el panel");
+          int[] ids = (int[]) field(selected, "childTaskIds");
+          if (ids.length != 1 || ids[0] != id)
+            throw new Exception("Esta ventana no admite cierre simple");
+          boolean removed = (Boolean) call("removeTask", new Class<?>[] {int.class}, id);
+          if (!removed) throw new Exception("Android no pudo cerrar esta ventana");
         } else throw new Exception("Accion desconocida");
       }
       result.put("ok", true);

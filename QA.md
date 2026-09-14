@@ -19,6 +19,16 @@ The public project enables the edge handle by default when the accessibility ser
 
 ## Suggested regression checks
 
+### September 14, 2026 additions
+
+The private development build containing these changes was installed on the same SM-F741B:
+
+- Spotify playing: WindowManager reported the cover overlay as the screen-holding window. After pause and a 12-second wait, the hold was cleared; after resuming and waiting again, it returned. Global USB stay-awake was disabled for this check. This verifies flag transitions, not an overnight endurance test.
+- Close apps: opened Calculator on display 1, entered **Cerrar apps**, and pressed its **Cerrar** button. Calculator disappeared from the activity task dump and the list refreshed. The next app remained available in the panel.
+- The phone was partially open with a temporary CLOSED device-state override during these checks. That override is not installed or managed by this app.
+
+Untested cases include multiple windows of the same app, closing a task that disappears concurrently, fresh installation, and playback behavior on different firmware. Closing a task is not a force-stop.
+
 Repeat the above on any compatibility change. Also check short/diagonal swipes, two-finger input, vertical scrolling back toward the top, text selection inside search, persistence after reboot and fresh-install root/accessibility prompts. A private API or Samsung firmware change may require code updates.
 
 Public build result: assembleDebug and lintDebug passed (0 errors, 42 warnings). Remaining warnings include private APIs, hardcoded untranslated labels, layout/RTL and dependency advisories. These are not a claim of full accessibility or portability.

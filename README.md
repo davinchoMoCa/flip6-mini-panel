@@ -54,6 +54,13 @@ Optional distribution signing uses the environment variables `MINIPANEL_KEYSTORE
 
 ## Architecture and permissions
 
+### Latest source changes (after v0.5.0)
+
+- **Close apps:** open the edge menu → **Cerrar apps**. Close individual standard app tasks on the cover or inner display, then refresh the list. This removes the task like dismissing it from Recents; it does not force-stop the package or guarantee that background playback stops. Mini Panel and System UI are excluded. Tasks that cannot be handled individually are rejected.
+- **Spotify screen-on:** while the accessibility overlay is enabled, Mini Panel checks Spotify's active media session through the root bridge every 10 seconds and keeps the cover overlay's screen on during playback. Pausing or a failed check releases this flag (an expanded menu retains its existing screen-on behavior). It does not deliberately wake a screen switched off by the user. No global screen-timeout setting is changed. This relies on the Android media-session dump format and needs verification on other firmware.
+
+These changes are in the source branch; the existing v0.5.0 release APK predates them. Build the current source to include them.
+
 | Component | Responsibility |
 | --- | --- |
 | `MainActivity` | App grid, search, favorites, local gestures |
@@ -81,6 +88,8 @@ Instala la APK de Releases, concede root a Mini Panel, habilita su servicio de a
 - Desliza a la derecha dentro del catálogo para volver al carrusel.
 - Desliza hacia abajo al principio de la lista para buscar.
 - Mantén pulsada una app para cambiar su estado de favorita.
+- En el menú lateral, **Cerrar apps** permite cerrar ventanas individualmente, como desde Recientes.
+- Mientras Spotify reproduce, el panel mantiene encendida la externa. Al pausar libera ese bloqueo en unos 10 segundos; después se aplica el tiempo de apagado habitual. Requiere la orilla de accesibilidad habilitada y root. Estas dos funciones están en el código posterior a la APK v0.5.0.
 
 Probado únicamente en SM-F741B con Android 15 / One UI 7. No instala root ni repara la pantalla interna. Algunas aplicaciones y permisos todavía pueden requerir abrir el teléfono.
 

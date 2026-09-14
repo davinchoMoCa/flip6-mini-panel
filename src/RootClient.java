@@ -8,9 +8,9 @@ import org.json.*;
 public class RootClient {
   public static JSONObject run(Context context, String action) throws Exception {
     if (!action.matches(
-        "nowplaying|media (play-pause|next|previous)|controls|volume (raise|lower)|brightness"
-            + " (up|down|auto)|list|home|back|switch [0-9]+|launch"
-            + " [A-Za-z0-9_]+(?:[.][A-Za-z0-9_]+)+"))
+        "spotifyplaying|nowplaying|media (play-pause|next|previous)|controls|volume"
+            + " (raise|lower)|brightness (up|down|auto)|list|home|back|switch [0-9]+|close"
+            + " [0-9]+|launch [A-Za-z0-9_]+(?:[.][A-Za-z0-9_]+)+"))
       throw new Exception("Accion no valida");
     String apk = context.getApplicationInfo().sourceDir;
     String cmd =
